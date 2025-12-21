@@ -1,0 +1,32 @@
+# 1. Hardware (PlatformIO / C++)
+.pio/
+.vscode/
+*.swp
+*.core
+
+# 2. Mobile (Flutter / Dart)
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+*.nmms
+*.pyc
+/flutter_app/android/.gradle/
+/flutter_app/android/app/src/main/res/drawable-*/
+
+
+# 3. Backend (NestJS / TypeScript)
+node_modules/
+dist/
+*.log
+.env
+.env.development
+.env.production
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 4. OS Files
+.DS_Store
+Thumbs.db
