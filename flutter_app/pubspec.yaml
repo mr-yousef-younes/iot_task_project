@@ -13,10 +13,14 @@ dependencies:
     sdk: flutter
 
   
-  
+  permission_handler: ^12.0.1
   cupertino_icons: ^1.0.8
-  flutter_blue_plus: ^2.1.0
   http: ^1.6.0
+  google_fonts: ^6.3.3
+  font_awesome_flutter: ^10.12.0
+  animate_do: ^4.2.0
+  sleek_circular_slider: ^2.1.0
+  flutter_reactive_ble: ^5.4.0
 
 dev_dependencies:
   flutter_test:
