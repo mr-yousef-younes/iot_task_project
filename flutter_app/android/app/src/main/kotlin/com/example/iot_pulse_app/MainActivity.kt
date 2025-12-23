@@ -1,4 +1,4 @@
-package com.example.iot_pulse_app
+package com.example.iot_pulse
 
 import io.flutter.embedding.android.FlutterActivity
 

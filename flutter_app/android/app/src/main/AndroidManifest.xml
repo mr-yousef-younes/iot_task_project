@@ -17,7 +17,7 @@
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
     <application
-        android:label="iot_pulse_app"
+        android:label="iot_pulse"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         

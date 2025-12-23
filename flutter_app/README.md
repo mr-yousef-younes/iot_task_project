@@ -1,4 +1,4 @@
-# iot_pulse_app
+# iot_pulse
 
 A new Flutter project.
 

@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.iot_pulse_app"
+    namespace = "com.example.iot_pulse"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -19,7 +19,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.iot_pulse_app"
+        applicationId = "com.example.iot_pulse"
         minSdk = 24
         targetSdk = 34
         versionCode = flutter.versionCode

@@ -1,16 +1,18 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query } from '@nestjs/common';
 import { ReadingsService } from './readings.service';
+import { CreateReadingDto } from './dto/create-reading.dto';
 
 @Controller('readings')
 export class ReadingsController {
-     constructor(private readonly readingsService: ReadingsService) { }
+  constructor(private readonly readingsService: ReadingsService) {}
 
-     @Post()
-     addReading(@Body('value') value: number) {
-          return this.readingsService.create(value);
-     }
-     @Get('latest')
-     getLatest() {
-          return this.readingsService.findlatest();
-     }
+  @Post()
+  create(@Body() dto: CreateReadingDto) {
+    return this.readingsService.create(dto);
+  }
+
+  @Get('latest')
+  getLatest(@Query('userId') userId: string) {
+    return this.readingsService.findLatest(userId);
+  }
 }
