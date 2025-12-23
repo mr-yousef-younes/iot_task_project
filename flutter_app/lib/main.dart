@@ -37,6 +37,72 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
+  // أضف هذه الدالة كاملة لتصحيح الخطأ في onPressed
+  void _showDeviceSheet() {
+    _startScan(); // يبدأ البحث عند فتح القائمة
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              height: 400,
+              child: Column(
+                children: [
+                  Text(
+                    "الأجهزة المكتشفة",
+                    style: GoogleFonts.cairo(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (_isScanning) const LinearProgressIndicator(),
+                  const Divider(),
+                  Expanded(
+                    child: _foundDevices.isEmpty
+                        ? Center(
+                            child: Text(
+                              "جاري البحث...",
+                              style: GoogleFonts.cairo(),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: _foundDevices.length,
+                            itemBuilder: (context, index) {
+                              final device = _foundDevices.values.elementAt(
+                                index,
+                              );
+                              return ListTile(
+                                leading: const Icon(Icons.bluetooth),
+                                title: Text(
+                                  device.name.isEmpty
+                                      ? "جهاز مجهول"
+                                      : device.name,
+                                ),
+                                subtitle: Text(device.id),
+                                onTap: () {
+                                  _connectToDevice(device.id);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  final Map<String, DiscoveredDevice> _foundDevices = {};
+  bool _isScanning = false;
   final _ble = FlutterReactiveBle();
   StreamSubscription<DiscoveredDevice>? _scanSubscription;
   StreamSubscription<ConnectionStateUpdate>? _connectionSubscription;
@@ -49,7 +115,6 @@ class _DashboardPageState extends State<DashboardPage> {
   String _hum = "--";
   String _heatIndex = "--";
 
-  final String deviceNameFilter = "ESP32-S3-Task";
   final String _backendUrl = "http://<SERVER_IP>:3000/sensor-data";
 
   final Uuid envServiceUuid = Uuid.parse(
@@ -75,24 +140,31 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     requestPermissions();
-    _initBluetoothScan();
   }
 
-  void _initBluetoothScan() {
-    _scanSubscription = _ble
-        .scanForDevices(withServices: [])
-        .listen(
-          (device) {
-            if (device.name == deviceNameFilter) {
-              _connectToDevice(device.id);
-              _scanSubscription?.cancel();
-              _scanSubscription = null;
-            }
-          },
-          onError: (error) {
-            debugPrint("Scan error: $error");
-          },
-        );
+  void _startScan() {
+    if (_isScanning) return;
+    setState(() {
+      _isScanning = true;
+      _foundDevices.clear(); // تنظيف القائمة القديمة
+    });
+
+    // البحث وتخزين الأجهزة في الـ Map
+    _scanSubscription = _ble.scanForDevices(withServices: []).listen((device) {
+      if (device.name.isNotEmpty) {
+        setState(() {
+          _foundDevices[device.id] = device;
+        });
+      }
+    }, onError: (e) => _stopScan());
+
+    // مؤقت لإيقاف البحث بعد 10 ثواني
+    Timer(const Duration(seconds: 10), _stopScan);
+  }
+
+  void _stopScan() {
+    _scanSubscription?.cancel();
+    if (mounted) setState(() => _isScanning = false);
   }
 
   void _connectToDevice(String deviceId) {
@@ -230,15 +302,18 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
         centerTitle: true,
         actions: [
-          _isConnected
-              ? Pulse(
-                  child: const Icon(
-                    Icons.bluetooth_connected,
-                    color: Colors.green,
-                  ),
-                )
-              : const Icon(Icons.bluetooth_disabled, color: Colors.red),
-          const SizedBox(width: 15),
+          IconButton(
+            onPressed: _showDeviceSheet,
+            icon: Icon(
+              _isConnected
+                  ? Icons.bluetooth_connected
+                  : (_isScanning ? Icons.sync : Icons.bluetooth_searching),
+              color: _isConnected
+                  ? Colors.green
+                  : (_isScanning ? Colors.blue : Colors.red),
+            ),
+          ),
+          const SizedBox(width: 10),
         ],
       ),
       body: SingleChildScrollView(
