@@ -39,7 +39,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   StreamSubscription<BleStatus>? _bleStatusSubscription;
   void _showDeviceSheet() {
-    _startScan(); // يبدأ البحث عند فتح القائمة
+    _startScan();
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -310,7 +310,7 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final double heartRateNum = double.tryParse(_heartRate) ?? 0;
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.deepPurple,
       appBar: AppBar(
         title: Text(
           "مراقب النبض الذكي",

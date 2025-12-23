@@ -1,10 +1,10 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <DHT.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
-#include <WiFi.h>
 #include "MAX30105.h"
 #define DHTPIN 4
 #define DHTTYPE DHT11
@@ -77,8 +77,6 @@ void setup() {
   nameCharacteristic->setCallbacks(new NameCallbacks());
   envService->start();
 
-  // 3. إنشاء خدمة النبض المستقلة (MAX30105)
-  // تم نقل التعريف "خارج" الشرط لضمان رؤية الخدمة في فلاتر دائماً
   BLEService *hrService = pServer->createService(HR_SERVICE_UUID);
   hrCharacteristic = hrService->createCharacteristic(
                        HR_MEASUREMENT_UUID, 
@@ -105,14 +103,14 @@ void setup() {
 }
 
 String makePayload(float t, float h, float hi) {
-  char buf[64];
+  char buf[128];
   
   snprintf(buf, sizeof(buf), "{\"t\":%.1f,\"h\":%.1f,\"i\":%.1f}", t, h, hi);
   return String(buf);
 }
  
 unsigned long previousMillis = 0;
-const long interval = 5000; // تقليل الوقت لـ 5 ثواني لتحديث أسرع
+const long interval = 3500; 
 
 void loop() {
   if (deviceConnected) {
