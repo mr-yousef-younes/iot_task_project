@@ -17,26 +17,29 @@ class ApiService {
     return prefs.getString('user_id');
   }
 
-  // 2. إنشاء مستخدم جديد (Signup)
   Future<String?> signUp(String name, int age, String birthDate) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/users/signup'),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "fullName": name,
-          "age": age,
-          "birthDate": birthDate,
-        }),
-      );
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/users/signup'),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "fullName": name,
+              "age": age,
+              "birthDate": birthDate,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
         await saveUserId(data['_id']);
         return data['_id'];
+      } else {
+        debugPrint("Server Error: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
-      debugPrint("Signup Error: $e");
+      debugPrint("Network Error: $e");
     }
     return null;
   }
@@ -71,7 +74,6 @@ class ApiService {
     return false;
   }
 
- 
   Future<void> sendReadingToBackend({
     required String userId,
     required double heartRate,

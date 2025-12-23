@@ -106,14 +106,19 @@ class _DashboardPageState extends State<DashboardPage> {
       _foundDevices.clear();
     });
 
-    _scanSubscription = _ble.scanForDevices(withServices: []).listen((device) {
-      if (device.name.isNotEmpty) {
-        setState(() => _foundDevices[device.id] = device);
-      }
-    }, onError: (e) {
-       debugPrint("خطأ في البحث: $e");
-       _stopScan();
-    });
+    _scanSubscription = _ble
+        .scanForDevices(withServices: [])
+        .listen(
+          (device) {
+            if (device.name.isNotEmpty) {
+              setState(() => _foundDevices[device.id] = device);
+            }
+          },
+          onError: (e) {
+            debugPrint("خطأ في البحث: $e");
+            _stopScan();
+          },
+        );
 
     Timer(const Duration(seconds: 10), _stopScan);
   }
@@ -179,7 +184,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
             const SizedBox(height: 25),
             ElevatedButton(
-              onPressed: _handleSignup,
+              onPressed: _isRegistering ? null : _handleSignup,
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
               ),
@@ -289,7 +294,7 @@ class _DashboardPageState extends State<DashboardPage> {
             Colors.redAccent,
           ),
           _dataCard(
-            "مؤشر الحرارة",
+            "درجة الحراره كأنها ",
             "${latestData?['heatIndex'] ?? '--'}°C",
             FontAwesomeIcons.sun,
             Colors.amber,
@@ -372,14 +377,37 @@ class _DashboardPageState extends State<DashboardPage> {
     });
   }
 
+  // منطق محدث داخل ملف main.dart
+  bool _isRegistering = false; // متغير جديد للحالة
+
   void _handleSignup() async {
-    if (_nameController.text.isEmpty) return;
+    if (_nameController.text.isEmpty || _ageController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("يرجى إكمال البيانات أولاً")),
+      );
+      return;
+    }
+
+    setState(() => _isRegistering = true); // ابدأ التحميل
+
     String? id = await _api.signUp(
       _nameController.text,
       int.parse(_ageController.text),
       "2000-01-01",
     );
-    if (id != null) setState(() => userId = id);
+
+    setState(() => _isRegistering = false); // توقف عن التحميل
+
+    if (id != null) {
+      setState(() => userId = id); // انتقل للداشبورد فوراً
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("فشل الاتصال بالسيرفر. تأكد من الـ IP والشبكة"),
+        ),
+      );
+    }
   }
 
   void _deleteAccount() async {
