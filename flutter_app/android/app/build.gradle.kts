@@ -21,6 +21,7 @@ android {
     defaultConfig {
         applicationId = "com.example.iot_pulse_app"
         minSdk = 24
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

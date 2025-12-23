@@ -37,7 +37,7 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  // أضف هذه الدالة كاملة لتصحيح الخطأ في onPressed
+  StreamSubscription<BleStatus>? _bleStatusSubscription;
   void _showDeviceSheet() {
     _startScan(); // يبدأ البحث عند فتح القائمة
     showModalBottomSheet(
@@ -115,7 +115,7 @@ class _DashboardPageState extends State<DashboardPage> {
   String _hum = "--";
   String _heatIndex = "--";
 
-  final String _backendUrl = "http://<SERVER_IP>:3000/sensor-data";
+  final String _backendUrl = "http://127.0.0.1:3000/readings";
 
   final Uuid envServiceUuid = Uuid.parse(
     "12345678-1234-1234-1234-1234567890ab",
@@ -123,7 +123,9 @@ class _DashboardPageState extends State<DashboardPage> {
   final Uuid envCharUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ac");
   final Uuid hrServiceUuid = Uuid.parse("87654321-4321-4321-4321-ba0987654321");
   final Uuid hrCharUuid = Uuid.parse("87654321-4321-4321-4321-ba0987654322");
-
+  final Uuid deviceNameCharUuid = Uuid.parse(
+    "0000ff01-0000-1000-8000-00805f9b34fb",
+  );
   Future<void> requestPermissions() async {
     await [
       Permission.bluetooth,
@@ -140,6 +142,13 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     requestPermissions();
+
+    _bleStatusSubscription = _ble.statusStream.listen((status) {
+      if (status != BleStatus.ready) {
+        setState(() => _isConnected = false);
+        debugPrint("تنبيه: البلوتوث غير جاهز! الحالة الحالية: $status");
+      }
+    });
   }
 
   void _startScan() {
@@ -171,10 +180,18 @@ class _DashboardPageState extends State<DashboardPage> {
     _connectionSubscription = _ble
         .connectToDevice(id: deviceId)
         .listen(
-          (update) {
+          (update) async {
             if (update.connectionState == DeviceConnectionState.connected) {
+              try {
+                await _ble.requestMtu(deviceId: deviceId, mtu: 512);
+              } catch (e) {
+                debugPrint("MTU Error: $e");
+              }
               setState(() => _isConnected = true);
-              _discoverServices(deviceId);
+              Future.delayed(
+                const Duration(seconds: 2),
+                () => _discoverServices(deviceId),
+              );
             } else {
               setState(() => _isConnected = false);
             }
@@ -207,11 +224,9 @@ class _DashboardPageState extends State<DashboardPage> {
                 final Map<String, dynamic> j = jsonDecode(decoded);
 
                 setState(() {
-                  _temp = j['tempC'] != null ? j['tempC'].toString() : "--";
-                  _hum = j['hum'] != null ? j['hum'].toString() : "--";
-                  _heatIndex = j['heatIndexC'] != null
-                      ? j['heatIndexC'].toString()
-                      : "--";
+                  _temp = j['t'] != null ? j['t'].toString() : "--";
+                  _hum = j['h'] != null ? j['h'].toString() : "--";
+                  _heatIndex = j['i'] != null ? j['i'].toString() : "--";
                 });
 
                 _sendDataToBackend(
@@ -287,6 +302,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _connectionSubscription?.cancel();
     _envSubscription?.cancel();
     _hrSubscription?.cancel();
+    _bleStatusSubscription?.cancel();
     super.dispose();
   }
 

@@ -6,11 +6,10 @@
 #include <BLE2902.h>
 #include <WiFi.h>
 #include "MAX30105.h"
-
 #define DHTPIN 4
 #define DHTTYPE DHT11
 
-
+String deviceName = "ESP32-S3";
 
 #define ENV_SERVICE_UUID "12345678-1234-1234-1234-1234567890ab"
 #define ENV_MEASUREMENT_UUID "12345678-1234-1234-1234-1234567890ac"
@@ -26,110 +25,119 @@ BLEServer *pServer;
 MAX30105 particleSensor;
 bool deviceConnected = false;
 
-class MyServerCallbacks : public BLEServerCallbacks {
-  void onConnect(BLEServer *pServer) { deviceConnected = true; }
-  void onDisconnect(BLEServer *pServer) { deviceConnected = false; }
+class MyServerCallbacks : public BLEServerCallbacks
+{
+  void onConnect(BLEServer *pServer)
+  {
+    deviceConnected = true;
+    Serial.println("Connected to Phone");
+  }
+  void onDisconnect(BLEServer *pServer)
+  {
+    deviceConnected = false;
+    Serial.println("Disconnected from Phone");
+    BLEDevice::startAdvertising(); 
+  }
 };
-
 class NameCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *pCharacteristic) {
     std::string value = pCharacteristic->getValue();
     if (value.length() > 0) {
-      deviceName = String(value.c_str());
-      BLEDevice::deinit();
-      BLEDevice::init(deviceName.c_str());
-      pServer = BLEDevice::createServer();
-      pServer->setCallbacks(new MyServerCallbacks());
-
-      BLEService *envService = pServer->createService(ENV_SERVICE_UUID);
-      envCharacteristic = envService->createCharacteristic(ENV_MEASUREMENT_UUID, BLECharacteristic::PROPERTY_NOTIFY);
-      envCharacteristic->addDescriptor(new BLE2902());
-      envService->start();
-
-      BLEService *hrService = pServer->createService(HR_SERVICE_UUID);
-      hrCharacteristic = hrService->createCharacteristic(HR_MEASUREMENT_UUID, BLECharacteristic::PROPERTY_NOTIFY);
-      hrCharacteristic->addDescriptor(new BLE2902());
-      hrService->start();
-
-      nameCharacteristic = envService->createCharacteristic(DEVICE_NAME_CHAR_UUID, BLECharacteristic::PROPERTY_WRITE);
-      nameCharacteristic->setCallbacks(new NameCallbacks());
-
-      BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-      pAdvertising->addServiceUUID(ENV_SERVICE_UUID);
-      pAdvertising->addServiceUUID(HR_SERVICE_UUID);
-      pAdvertising->setScanResponse(true);
-      pAdvertising->setMinPreferred(0x06);
-      BLEDevice::startAdvertising();
+      Serial.print("New Device Name: ");
+      Serial.println(value.c_str());
+      // ملاحظة: تغيير الاسم الفعلي يتطلب إعادة تشغيل الجهاز 
+      // يفضل تخزينه في الـ EEPROM وعمل restart
     }
   }
 };
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
+  delay(1000);
   dht.begin();
 
+  // 1. تهيئة البلوتوث
   BLEDevice::init(deviceName.c_str());
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
+  // 2. إنشاء خدمة البيئة المستقلة (DHT11)
   BLEService *envService = pServer->createService(ENV_SERVICE_UUID);
-  envCharacteristic = envService->createCharacteristic(ENV_MEASUREMENT_UUID, BLECharacteristic::PROPERTY_NOTIFY);
+  envCharacteristic = envService->createCharacteristic(
+                        ENV_MEASUREMENT_UUID, 
+                        BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+                      );
   envCharacteristic->addDescriptor(new BLE2902());
+  
+  // خاصية الاسم داخل خدمة البيئة لتوحيد الهيكل
+  nameCharacteristic = envService->createCharacteristic(
+                         DEVICE_NAME_CHAR_UUID, 
+                         BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_READ
+                       );
+  nameCharacteristic->setCallbacks(new NameCallbacks());
   envService->start();
 
+  // 3. إنشاء خدمة النبض المستقلة (MAX30105)
+  // تم نقل التعريف "خارج" الشرط لضمان رؤية الخدمة في فلاتر دائماً
   BLEService *hrService = pServer->createService(HR_SERVICE_UUID);
+  hrCharacteristic = hrService->createCharacteristic(
+                       HR_MEASUREMENT_UUID, 
+                       BLECharacteristic::PROPERTY_NOTIFY | BLECharacteristic::PROPERTY_READ
+                     );
+  hrCharacteristic->addDescriptor(new BLE2902());
+
   if (particleSensor.begin(Wire, I2C_SPEED_STANDARD)) {
-    hrCharacteristic = hrService->createCharacteristic(HR_MEASUREMENT_UUID, BLECharacteristic::PROPERTY_NOTIFY);
-    hrCharacteristic->addDescriptor(new BLE2902());
     particleSensor.setup();
+    Serial.println("MAX30105 Initialized Successfully");
+  } else {
+    Serial.println("Warning: MAX30105 not found. Service will still be visible.");
   }
   hrService->start();
 
-  nameCharacteristic = envService->createCharacteristic(DEVICE_NAME_CHAR_UUID, BLECharacteristic::PROPERTY_WRITE);
-  nameCharacteristic->setCallbacks(new NameCallbacks());
-
+  // 4. إعدادات البث (Advertising)
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(ENV_SERVICE_UUID);
   pAdvertising->addServiceUUID(HR_SERVICE_UUID);
   pAdvertising->setScanResponse(true);
-  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMinPreferred(0x06);  
   BLEDevice::startAdvertising();
+  Serial.println("Bluetooth is Ready and Independent");
 }
 
-String makePayload(float tC, float h, float heatC) {
-  char buf[128];
-  snprintf(buf, sizeof(buf), "{\"tempC\":%.2f,\"hum\":%.1f,\"heatIndexC\":%.2f,\"ts\":\"%lu\"}", tC, h, heatC, millis());
+String makePayload(float t, float h, float hi) {
+  char buf[64];
+  
+  snprintf(buf, sizeof(buf), "{\"t\":%.1f,\"h\":%.1f,\"i\":%.1f}", t, h, hi);
   return String(buf);
 }
-
+ 
 unsigned long previousMillis = 0;
-const long interval = 10000;
+const long interval = 5000; // تقليل الوقت لـ 5 ثواني لتحديث أسرع
 
 void loop() {
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
+  if (deviceConnected) {
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
 
-    float tempC = dht.readTemperature();
-    float hum = dht.readHumidity();
-    if (!isnan(tempC) && !isnan(hum)) {
-      float heatIndexC = dht.computeHeatIndex(tempC, hum, false);
-      if (deviceConnected) {
+      // --- إرسال بيانات الحرارة بشكل مستقل ---
+      float tempC = dht.readTemperature();
+      float hum = dht.readHumidity();
+      if (!isnan(tempC) && !isnan(hum)) {
+        float heatIndexC = dht.computeHeatIndex(tempC, hum, false);
         String payload = makePayload(tempC, hum, heatIndexC);
-        std::string stdp = payload.c_str();
-        envCharacteristic->setValue((uint8_t*)stdp.data(), stdp.length());
+        envCharacteristic->setValue(payload.c_str());
         envCharacteristic->notify();
+        Serial.println("Env Data Sent: " + payload);
       }
-    }
 
-    if (deviceConnected && particleSensor.begin(Wire, I2C_SPEED_STANDARD)) {
+      // --- إرسال بيانات النبض بشكل مستقل ---
       long irValue = particleSensor.getIR();
-      if (irValue > 50000) {
+      if (irValue > 50000) { // يرسل فقط إذا استشعر وجود إصبع
         String hrPayload = String(irValue);
-        std::string stdHr = hrPayload.c_str();
-        hrCharacteristic->setValue((uint8_t*)stdHr.data(), stdHr.length());
+        hrCharacteristic->setValue(hrPayload.c_str());
         hrCharacteristic->notify();
+        Serial.println("Heart Rate Sent: " + hrPayload);
       }
     }
   }
