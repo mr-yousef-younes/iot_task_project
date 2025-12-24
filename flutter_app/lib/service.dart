@@ -115,4 +115,18 @@ Future<List<Map<String, String>>> getAllUsers() async {
       debugPrint("Error sending to backend: $e");
     }
   }
+
+  Future<List<dynamic>> getAllHistory(String userId) async {
+  try {
+    final response = await http.get(
+      Uri.parse('$baseUrl/readings/all?userId=$userId'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+  } catch (e) {
+    debugPrint("History Fetch Error: $e");
+  }
+  return [];
+}
 }

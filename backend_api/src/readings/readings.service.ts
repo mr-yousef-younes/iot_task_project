@@ -51,4 +51,8 @@ export class ReadingsService {
   async findLatest(userId: string) {
     return this.readingModel.findOne({ userId }).sort({ createdAt: -1 }).exec();
   }
+
+  async findAll(userId: string) {
+  return this.readingModel.find({ userId }).sort({ createdAt: -1 }).limit(100).exec();
+}
 }

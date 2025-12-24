@@ -15,4 +15,8 @@ export class ReadingsController {
   getLatest(@Query('userId') userId: string) {
     return this.readingsService.findLatest(userId);
   }
+  @Get('all')
+findAll(@Query('userId') userId: string) {
+  return this.readingsService.findAll(userId);
+}
 }
