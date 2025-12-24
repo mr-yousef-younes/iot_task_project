@@ -22,20 +22,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _fetchHistory();
   }
 
-  // دالة جلب السجل من السيرفر
   Future<void> _fetchHistory() async {
-    // ملاحظة: ستحتاج لإضافة دالة getAllReadings في ApiService
-    // سنقوم بتعديلها في الخطوة القادمة
     try {
-      final data = await _api.getLatestReadings(widget.userId); // مؤقتاً نجلب آخر قراءة
-      // في النسخة الكاملة يفضل أن يكون هناك Route في السيرفر يجلب كل القراءات
-      if (data != null) {
-        setState(() {
-          _history = [data]; // نضع البيانات في قائمة
-          _isLoading = false;
-        });
-      }
+      final data = await _api.getAllHistory(widget.userId);
+      setState(() {
+        _history = data ;
+        _isLoading = false;
+      });
     } catch (e) {
+      debugPrint("خطأ في جلب السجل: $e");
       setState(() => _isLoading = false);
     }
   }
@@ -43,37 +38,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("سجل القراءات", style: GoogleFonts.cairo()),
-      ),
+      appBar: AppBar(title: Text("سجل القراءات", style: GoogleFonts.cairo())),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _history.isEmpty
-              ? const Center(child: Text("لا توجد سجلات بعد"))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(10),
-                  itemCount: _history.length,
-                  itemBuilder: (context, index) {
-                    final item = _history[index];
-                    // تنسيق التاريخ
-                    final date = DateTime.parse(item['timestamp'] ?? DateTime.now().toString());
-                    final formattedDate = DateFormat('yyyy/MM/dd - hh:mm a').format(date);
+          ? const Center(child: Text("لا توجد سجلات بعد"))
+          : ListView.builder(
+              padding: const EdgeInsets.all(10),
+              itemCount: _history.length,
+              itemBuilder: (context, index) {
+                final item = _history[index];
+                // تنسيق التاريخ
+                final date = DateTime.parse(
+                  item['timestamp'] ?? DateTime.now().toString(),
+                );
+                final formattedDate = DateFormat(
+                  'yyyy/MM/dd - hh:mm a',
+                ).format(date);
 
-                    return Card(
-                      elevation: 3,
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: ListTile(
-                        leading: const Icon(Icons.favorite, color: Colors.red),
-                        title: Text("نبض القلب: ${item['heartRate']} BPM"),
-                        subtitle: Text("حرارة: ${item['tempC']}°C | رطوبة: ${item['humidity']}%"),
-                        trailing: Text(
-                          formattedDate,
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                return Card(
+                  elevation: 3,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.favorite, color: Colors.red),
+                    title: Text("نبض القلب: ${item['heartRate']} BPM"),
+                    subtitle: Text(
+                      "حرارة: ${item['tempC']}°C | رطوبة: ${item['humidity']}%",
+                    ),
+                    trailing: Text(
+                      formattedDate,
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                  ),
+                );
+              },
+            ),
     );
   }
 }

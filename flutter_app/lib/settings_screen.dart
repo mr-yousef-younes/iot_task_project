@@ -74,7 +74,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.add_circle, color: Colors.green),
                   title: const Text("إضافة حساب جديد"),
                   onTap: () {
-                    // منطق الخروج للتسجيل من جديد
+                    settings.setUserId(
+                      null,
+                    ); // مسح المعرف الحالي من الـ Provider
+                    context.go('/'); // العودة لشاشة الـ Signup
                   },
                 ),
               ],
@@ -117,11 +120,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _generatePdfReport(AppSettings settings) async {
+    if (settings.userId == null) return;
+
+    final List<dynamic> history = await _api.getAllHistory(settings.userId!);
+
     final pdf = pw.Document();
     final arabicFont = await PdfGoogleFonts.cairoRegular();
     final arabicFontBold = await PdfGoogleFonts.cairoBold();
 
-    // 2. جلب البيانات (سنستخدم البيانات التي جلبناها من الـ API)
     final String userName = _users.firstWhere(
       (u) => u['id'] == settings.userId,
       orElse: () => {'name': 'مستخدم غير معروف'},
@@ -136,7 +142,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                // الهيدر
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
@@ -152,7 +157,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 pw.Divider(),
                 pw.SizedBox(height: 20),
-
                 pw.Text(
                   "اسم المريض: $userName",
                   style: pw.TextStyle(font: arabicFont, fontSize: 16),
@@ -165,10 +169,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   "تاريخ التقرير: ${DateTime.now().toString().split(' ')[0]}",
                   style: pw.TextStyle(font: arabicFont),
                 ),
-
                 pw.SizedBox(height: 30),
-
-                // جدول البيانات الفعلي
                 pw.TableHelper.fromTextArray(
                   context: context,
                   cellStyle: pw.TextStyle(font: arabicFont),
@@ -180,23 +181,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: PdfColors.deepPurple,
                   ),
                   data: <List<String>>[
-                    ['الحالة', 'الرطوبة', 'الحرارة', 'النبض'],
-                    [
-                      'مستقرة',
-                      '45%',
-                      '37.2°C',
-                      '75 BPM',
-                    ],
-                    
-                    
-                     // هنا يمكنك تمرير قائمة البيانات الحقيقية
-
-
-
-                    ['مستقرة', '46%', '37.1°C', '72 BPM'],
+                    ['التاريخ', 'الرطوبة', 'الحرارة', 'النبض'],
+                    ...history.map(
+                      (item) => [
+                        item['timestamp'].toString().substring(0, 10),
+                        '${item['humidity']}%',
+                        '${item['tempC']}°C',
+                        '${item['heartRate']} BPM',
+                      ],
+                    ),
                   ],
                 ),
-
                 pw.Spacer(),
                 pw.Align(
                   alignment: pw.Alignment.center,
@@ -215,6 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         },
       ),
     );
+
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name: 'Report_${settings.userId}.pdf',
