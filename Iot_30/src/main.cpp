@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Wire.h>
 #include <WiFi.h>
 #include <DHT.h>
 #include <BLEDevice.h>
@@ -6,7 +7,7 @@
 #include <BLEUtils.h>
 #include <BLE2902.h>
 #include "MAX30105.h"
-#include <Wire.h>
+#include "heartRate.h"
 
 #define DHTPIN 4
 #define DHTTYPE DHT11
@@ -92,6 +93,10 @@ void setup()
   Serial.println("Waiting for a client connection...");
 }
 
+long lastBeat = 0;
+float beatsPerMinute;
+int beatAvg;
+
 void loop()
 {
 
@@ -117,7 +122,7 @@ void loop()
       float hum = dht.readHumidity();
 
       if (!isnan(temp) && !isnan(hum))
-      {
+      { 
 
         int16_t tempInt = (int16_t)(temp * 100);
         int16_t humInt = (int16_t)(hum * 100);
@@ -137,23 +142,33 @@ void loop()
       }
     }
 
-    if (currentMillis - lastHrTime >= hrInterval)
-    {
-      long irValue = particleSensor.getIR();
-      if (irValue > 50000)
-      {
-        uint32_t rawIR = (uint32_t)irValue;
+ long irValue = particleSensor.getIR();
 
+    if (checkForBeat(irValue) == true) {
+      long delta = millis() - lastBeat;
+      lastBeat = millis();
+      beatsPerMinute = 60 / (delta / 1000.0);
+      if (beatsPerMinute < 255 && beatsPerMinute > 20) {
+        beatAvg = (int)beatsPerMinute;
+      }
+    }
+
+    if (currentMillis - lastHrTime >= hrInterval) {
+      if (irValue > 50000) {
+        uint32_t heartRateToSend = (uint32_t)beatAvg;
         uint8_t hrData[4];
-        hrData[0] = (rawIR >> 24) & 0xFF;
-        hrData[1] = (rawIR >> 16) & 0xFF;
-        hrData[2] = (rawIR >> 8) & 0xFF;
-        hrData[3] = rawIR & 0xFF;
+        hrData[0] = (heartRateToSend >> 24) & 0xFF;
+        hrData[1] = (heartRateToSend >> 16) & 0xFF;
+        hrData[2] = (heartRateToSend >> 8) & 0xFF;
+        hrData[3] = heartRateToSend & 0xFF;
 
         hrCharacteristic->setValue(hrData, 4);
         hrCharacteristic->notify();
-
-        Serial.printf("Sent HR Raw: %d\n", rawIR);
+        Serial.printf("BPM: %d\n", beatAvg);
+      } else {
+        uint32_t zero = 0;
+        hrCharacteristic->setValue((uint8_t*)&zero, 4);
+        hrCharacteristic->notify();
       }
       lastHrTime = currentMillis;
     }
