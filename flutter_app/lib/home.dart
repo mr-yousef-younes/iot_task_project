@@ -9,7 +9,6 @@ import 'package:provider/provider.dart';
 import 'package:sleek_circular_slider/sleek_circular_slider.dart';
 import 'dart:async';
 import 'dart:typed_data';
-
 import 'service.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -17,6 +16,8 @@ class DashboardPage extends StatefulWidget {
   @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
+
+Timer? _timer;
 
 class _DashboardPageState extends State<DashboardPage> {
   final _api = ApiService();
@@ -37,11 +38,15 @@ class _DashboardPageState extends State<DashboardPage> {
   bool isLoading = true;
   bool _isConnected = false;
   bool _isScanning = false;
+
   double _currentTemp = 0;
   double _currentHum = 0;
   int _currentRawHR = 0;
-  final Map<String, DiscoveredDevice> _foundDevices = {};
   Map<String, dynamic>? latestData;
+
+  final Map<String, DiscoveredDevice> _foundDevices = {};
+  StreamSubscription<List<int>>? _envSub;
+  StreamSubscription<List<int>>? _hrSub;
 
   final _nameController = TextEditingController();
   final _ageController = TextEditingController();
@@ -50,6 +55,15 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     _initApp();
+    _ble.statusStream.listen((status) {
+      if (status != BleStatus.ready && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("يرجى التأكد من تشغيل البلوتوث والموقع"),
+          ),
+        );
+      }
+    });
     Timer.periodic(const Duration(seconds: 5), (timer) {
       if (userId != null) _fetchLatestData();
     });
@@ -237,6 +251,10 @@ class _DashboardPageState extends State<DashboardPage> {
             fontSize: 40,
             fontWeight: FontWeight.bold,
           ),
+          modifier: (double value) {
+            if (_currentRawHR == -1) return 'لا توجد اشاره ';
+            return '${value.toInt()}';
+          },
           bottomLabelText: "BPM",
         ),
       ),
@@ -370,7 +388,9 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _subscribeToData(String deviceId) {
-    _ble
+    _envSub?.cancel();
+    _hrSub?.cancel();
+    _envSub = _ble
         .subscribeToCharacteristic(
           QualifiedCharacteristic(
             serviceId: _envServiceUuid,
@@ -381,14 +401,16 @@ class _DashboardPageState extends State<DashboardPage> {
         .listen((data) {
           if (data.length >= 4) {
             final bytes = ByteData.sublistView(Uint8List.fromList(data));
+            int rawTemp = bytes.getInt16(0, Endian.big);
+            int rawHum = bytes.getInt16(2, Endian.big);
             setState(() {
-              _currentTemp = bytes.getInt16(0, Endian.big) / 100.0;
-              _currentHum = bytes.getInt16(2, Endian.big) / 100.0;
+              _currentTemp = (rawTemp == -999) ? -999 : rawTemp / 100.0;
+              _currentHum = (rawHum == -999) ? -999 : rawHum / 100.0;
             });
             _syncToBackend();
           }
         });
-    _ble
+    _hrSub = _ble
         .subscribeToCharacteristic(
           QualifiedCharacteristic(
             serviceId: _hrServiceUuid,
@@ -399,23 +421,26 @@ class _DashboardPageState extends State<DashboardPage> {
         .listen((data) {
           if (data.length >= 4) {
             final bytes = ByteData.sublistView(Uint8List.fromList(data));
-            setState(() => _currentRawHR = bytes.getUint32(0));
+            int rawHR = bytes.getInt32(0, Endian.big);
+            setState(() => _currentRawHR = rawHR);
           }
         });
   }
 
   void _syncToBackend() {
-  if (userId != null) {
-    _api.sendReadingToBackend(
-      userId: userId!,
-      heartRate: _currentRawHR > 200 ? 0 : _currentRawHR.toDouble(),
-      spo2: -1,
-      temp: _currentTemp,
-      humidity: _currentHum,
-    );
-    _fetchLatestData();
+    if (userId != null) {
+      if (_currentRawHR != -1 && _currentTemp != -999) {
+        _api.sendReadingToBackend(
+          userId: userId!,
+          heartRate: _currentRawHR.toDouble(),
+          spo2: -1.0,
+          temp: _currentTemp,
+          humidity: _currentHum,
+        );
+      }
+      _fetchLatestData();
+    }
   }
-}
 
   bool _isRegistering = false;
 
@@ -449,10 +474,11 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-
-
   @override
   void dispose() {
+    _timer?.cancel();
+    _envSub?.cancel();
+    _hrSub?.cancel();
     _scanSubscription?.cancel();
     _connectionSubscription?.cancel();
     super.dispose();

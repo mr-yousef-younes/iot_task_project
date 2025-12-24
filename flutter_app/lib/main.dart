@@ -3,25 +3,53 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:iot_pulse/history_screen.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:provider/provider.dart';
 import 'home.dart';
 import 'settings_screen.dart';
 
-Future<void> requestAllPermissions() async {
-  await [
+Future<bool> requestAllPermissions() async {
+  Map<Permission, PermissionStatus> statuses = await [
     Permission.bluetoothScan,
     Permission.bluetoothConnect,
+    Permission.bluetoothAdvertise,
     Permission.location,
   ].request();
+  bool permissionsGranted = statuses.values.every((status) => status.isGranted);
+
+  if (!permissionsGranted) {
+    debugPrint("خطأ: لم تُمنح جميع الصلاحيات المطلوبة.");
+    return false;
+  }
+
+  bool internetAvailable =
+      await InternetConnectionChecker.createInstance().hasConnection;
+  if (!internetAvailable) {
+    debugPrint("خطأ: لا يوجد اتصال بالإنترنت.");
+    return false;
+  }
+
+  return true;
 }
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await requestAllPermissions();
+  bool isReady = await requestAllPermissions();
   runApp(
     ChangeNotifierProvider(
       create: (_) => AppSettings(),
-      child: const IoTPulse(),
+      child: isReady
+          ? const IoTPulse()
+          : const MaterialApp(
+              home: Scaffold(
+                body: Center(
+                  child: Text(
+                    "يرجى تفعيل الإنترنت والأذونات وإعادة تشغيل التطبيق",
+                    style: TextStyle(fontFamily: 'Cairo'),
+                  ),
+                ),
+              ),
+            ),
     ),
   );
 }

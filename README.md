@@ -1,3 +1,16 @@
+
+⚠️ This project is proprietary and for showcase only. Unauthorized use is prohibited.
+
+
+
+
+
+
+
+
+
+
+
 # IoT Pulse System - Architecture & Workflow
 
 <div dir="rtl">
