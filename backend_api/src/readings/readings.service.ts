@@ -53,6 +53,7 @@ export class ReadingsService {
   }
 
   async findAll(userId: string) {
+    if (!userId || userId === 'null') return [];
   return this.readingModel.find({ userId }).sort({ createdAt: -1 }).limit(100).exec();
 }
 }

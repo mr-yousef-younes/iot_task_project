@@ -7,8 +7,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Post('signup')
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  async create(@Body() createUserDto: CreateUserDto) {
+    return await this.usersService.create(createUserDto);
   }
 
   @Get()
@@ -17,7 +17,7 @@ export class UsersController {
   }
 
   @Delete(':id')
-remove(@Param('id') id: string) {
-  return this.usersService.remove(id);
+async remove(@Param('id') id: string) {
+  return await this.usersService.remove(id);
 }
 }

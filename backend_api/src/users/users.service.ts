@@ -9,12 +9,27 @@ export class UsersService {
   [x: string]: any;
   constructor(@InjectModel(User.name) private userModel: Model<User>) { }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto) {
     const newUser = new this.userModel(createUserDto);
-    return newUser.save();
+    const savedUser = await newUser.save();
+
+    return {
+      success: true,
+      message: 'تم التسجيل بنجاح',
+      _id: savedUser._id.toString(),
+      fullName: savedUser.fullName
+    };
   }
+
 
   async findAll(): Promise<User[]> {
     return this.userModel.find().exec();
+  }
+  async remove(id: string) {
+    await this.userModel.findByIdAndDelete(id);
+    return {
+      success: true,
+      message: 'تم الحذف بنجاح',
+    };
   }
 }

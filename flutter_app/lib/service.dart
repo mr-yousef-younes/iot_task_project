@@ -49,8 +49,10 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 5));
 
-      if (response.statusCode == 201) {
+      if ((response.statusCode == 201 || response.statusCode == 200) &&
+          response.body.isNotEmpty) {
         final data = jsonDecode(response.body);
+
         await saveUserId(data['_id'], name);
         return data['_id'];
       } else {
@@ -68,8 +70,16 @@ class ApiService {
       final response = await http.get(
         Uri.parse('$baseUrl/readings/latest?userId=$userId'),
       );
+
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        if (response.body.isNotEmpty) {
+          return jsonDecode(response.body);
+        } else {
+          debugPrint("Server returned empty body for latest readings");
+          return null; // أو {} حسب ما التطبيق محتاج
+        }
+      } else {
+        debugPrint("Server Error: ${response.statusCode}");
       }
     } catch (e) {
       debugPrint("Fetch Error: $e");
@@ -99,7 +109,6 @@ class ApiService {
     required double temp,
     required double humidity,
   }) async {
-   
     if (_lastSendTime != null &&
         DateTime.now().difference(_lastSendTime!).inSeconds < 15) {
       return;
@@ -128,15 +137,27 @@ class ApiService {
 
   Future<List<dynamic>> getAllHistory(String userId) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/readings/all?userId=$userId'),
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl/readings/all?userId=$userId'))
+          .timeout(
+            const Duration(seconds: 5),
+          ); // إضافة وقت انتظار لتجنب التعليق
+
+      // الحل هنا: فحص الحالة ومحتوى الاستجابة قبل التحويل
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        if (response.body.isNotEmpty && response.body != "null") {
+          return jsonDecode(response.body);
+        } else {
+          debugPrint("Server returned empty list");
+          return []; // إرجاع قائمة فارغة بدلاً من وقوع الخطأ
+        }
+      } else {
+        debugPrint("Server Error: ${response.statusCode}");
+        return [];
       }
     } catch (e) {
-      debugPrint("History Fetch Error: $e");
+      debugPrint("Network Error: $e");
+      return [];
     }
-    return [];
   }
 }
