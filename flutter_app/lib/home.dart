@@ -119,7 +119,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        title: Text(userId == null ? "إنشاء حساب" : "مراقب النبض الذكي"),
+        title: Text(userId == null ? "إنشاء حساب" : "مراقب"),
         actions: userId != null
             ? [
                 IconButton(
@@ -221,7 +221,7 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildStatusBanner() {
-    String report = latestData?['statusReport'] ?? "جاري تحليل البيانات...";
+    String report = latestData?['statusReport'] ?? 'لا إشاره ';
 
     return Container(
       width: double.infinity,
@@ -240,6 +240,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildCircularSlider(double value) {
     String report = latestData?['statusReport'] ?? "";
+    double displayHR = _currentRawHR.toDouble();
     return SleekCircularSlider(
       appearance: CircularSliderAppearance(
         size: 250,
@@ -252,7 +253,7 @@ class _DashboardPageState extends State<DashboardPage> {
             fontWeight: FontWeight.bold,
           ),
           modifier: (double value) {
-            if (_currentRawHR == -1) return 'لا توجد اشاره ';
+            if (_currentRawHR == -1) return 'لا إشاره ';
             return '${value.toInt()}';
           },
           bottomLabelText: "BPM",
@@ -260,8 +261,60 @@ class _DashboardPageState extends State<DashboardPage> {
       ),
       min: 0,
       max: 200,
-      initialValue: value,
+      initialValue: displayHR > 0 ? displayHR : 0,
     );
+  }
+
+  // 1. دالة الحساب الرياضي
+  double calculateHeatIndex(double tempC, double humidity) {
+    double temperatureInFahrenheit = (tempC * 1.8) + 32;
+    double relativeHumidity = humidity;
+
+    double heatIndex =
+        0.5 *
+        (temperatureInFahrenheit +
+            61.0 +
+            ((temperatureInFahrenheit - 68.0) * 1.2) +
+            (relativeHumidity * 0.094));
+
+    if (heatIndex > 80) {
+      heatIndex =
+          -42.379 +
+          2.04901523 * temperatureInFahrenheit +
+          10.14333127 * relativeHumidity -
+          0.22475541 * temperatureInFahrenheit * relativeHumidity -
+          0.00683783 * temperatureInFahrenheit * temperatureInFahrenheit -
+          0.05481717 * relativeHumidity * relativeHumidity +
+          0.00122874 *
+              temperatureInFahrenheit *
+              temperatureInFahrenheit *
+              relativeHumidity +
+          0.00085282 *
+              temperatureInFahrenheit *
+              relativeHumidity *
+              relativeHumidity -
+          0.00000199 *
+              temperatureInFahrenheit *
+              temperatureInFahrenheit *
+              relativeHumidity *
+              relativeHumidity;
+    }
+    return (heatIndex - 32) / 1.8;
+  }
+
+  // 2. دالة تجهيز النص للعرض في الكارت
+  String getHeatIndexValue() {
+    final settings = Provider.of<AppSettings>(context, listen: false);
+    if (_currentTemp == 0 || _currentTemp == -999 || _currentHum <= 0) {
+      return 'لا إشاره ';
+    }
+
+    double hi = calculateHeatIndex(_currentTemp, _currentHum);
+
+    if (settings.isFahrenheit) {
+      return "${(hi * 1.8 + 32).toStringAsFixed(1)}°F";
+    }
+    return "${hi.toStringAsFixed(1)}°C";
   }
 
   Widget _buildInfoCards() {
@@ -277,20 +330,20 @@ class _DashboardPageState extends State<DashboardPage> {
         children: [
           _dataCard(
             "الحرارة",
-            latestData?['tempC'] == null
-                ? "جاري الاتصال..."
+            (_currentTemp == -999 || _currentTemp == 0)
+                ? 'لا إشاره '
                 : settings.isFahrenheit
-                ? "${((double.tryParse(latestData!['tempC'].toString()) ?? 0) * 1.8 + 32).toStringAsFixed(1)}°F"
-                : "${latestData!['tempC']}°C",
+                ? "${(_currentTemp * 1.8 + 32).toStringAsFixed(1)}°F"
+                : "${_currentTemp.toStringAsFixed(1)}°C",
             FontAwesomeIcons.temperatureHalf,
             Colors.orange,
           ),
 
           _dataCard(
             "الرطوبة",
-            latestData?['humidity'] == null
-                ? "جاري الاتصال..."
-                : "${latestData!['humidity']}%",
+            (_currentTemp == -999 || _currentTemp == 0)
+                ? 'لا إشاره '
+                : "${_currentHum.toStringAsFixed(1)}%",
             FontAwesomeIcons.droplet,
             Colors.blue,
           ),
@@ -298,7 +351,7 @@ class _DashboardPageState extends State<DashboardPage> {
           _dataCard(
             "الأكسجين",
             (latestData?['spo2'] == null || latestData?['spo2'] == 0)
-                ? "جاري الاتصال..."
+                ? 'لا إشاره '
                 : "${latestData!['spo2']}%",
             FontAwesomeIcons.lungs,
             Colors.redAccent,
@@ -306,9 +359,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
           _dataCard(
             "درجة الحرارة كأنها",
-            latestData?['heatIndex'] == null
-                ? "جاري الاتصال..."
-                : "${latestData!['heatIndex']}°C",
+            getHeatIndexValue(),
             FontAwesomeIcons.sun,
             Colors.amber,
           ),
@@ -449,31 +500,28 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isRegistering = false;
 
   void _handleSignup() async {
-    if (_nameController.text.isEmpty || _ageController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("يرجى إكمال البيانات أولاً")),
-      );
+    if (_nameController.text.trim().isEmpty ||
+        _ageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("يرجى إدخال الاسم والعمر")));
       return;
     }
 
-    setState(() => _isRegistering = true); // ابدأ التحميل
+    setState(() => _isRegistering = true);
+    final String name = _nameController.text.trim();
+    final int age = int.parse(_ageController.text.trim());
+    String? id = await _api.signUp(name, age);
+    if (!mounted) return;
 
-    String? id = await _api.signUp(
-      _nameController.text,
-      int.parse(_ageController.text),
-      "2000-01-01",
-    );
-
-    setState(() => _isRegistering = false); // توقف عن التحميل
+    setState(() => _isRegistering = false);
 
     if (id != null) {
-      setState(() => userId = id); // انتقل للداشبورد فوراً
+      setState(() => userId = id);
+      _fetchLatestData();
     } else {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("فشل الاتصال بالسيرفر. تأكد من الـ IP والشبكة"),
-        ),
+        const SnackBar(content: Text("فشل التسجيل، تأكد من اتصال السيرفر")),
       );
     }
   }

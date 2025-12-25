@@ -35,7 +35,7 @@ class ApiService {
     return prefs.getString('user_id');
   }
 
-  Future<String?> signUp(String name, int age, String birthDate) async {
+  Future<String?> signUp(String name, int age) async {
     try {
       final response = await http
           .post(
@@ -44,7 +44,6 @@ class ApiService {
             body: jsonEncode({
               "fullName": name,
               "age": age,
-              "birthDate": birthDate,
             }),
           )
           .timeout(const Duration(seconds: 5));

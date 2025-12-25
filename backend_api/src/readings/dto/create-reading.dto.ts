@@ -4,4 +4,5 @@ export class CreateReadingDto {
   spo2: number;
   tempC: number;
   humidity: number;
+  alerts?: string[];
 }
