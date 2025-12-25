@@ -437,7 +437,10 @@ class _DashboardPageState extends State<DashboardPage> {
           temp: _currentTemp,
           humidity: _currentHum,
         );
-        Future.delayed(const Duration(milliseconds: 750), () => _fetchLatestData());
+        Future.delayed(
+          const Duration(milliseconds: 750),
+          () => _fetchLatestData(),
+        );
       }
       _fetchLatestData();
     }
